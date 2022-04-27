@@ -49,7 +49,6 @@ ethereum-interfaces = { git = "https://github.com/ledgerwatch/interfaces", featu
 ethereum-types = { version = "0.13", features = ["codec"] }
 ethereum-jsonrpc = { git = "https://github.com/rust-ethereum/jsonrpc" }
 ethnum = { git = "https://github.com/vorot93/ethnum-rs", branch = "staging", features = [
-    "llvm-intrinsics",
     "rlp",
     "scale",
 ] }
@@ -144,6 +143,13 @@ crossbeam-skiplist = { git = "https://github.com/crossbeam-rs/crossbeam" }
 [build-dependencies]
 anyhow = "1"
 vergen = "7"
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+ethnum = { git = "https://github.com/vorot93/ethnum-rs", branch = "staging", features = [
+    "llvm-intrinsics",
+    "rlp",
+    "scale",
+] }
 
 [dev-dependencies]
 bytes-literal = { git = "https://github.com/vorot93/bytes-literal" }
