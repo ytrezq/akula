@@ -31,18 +31,6 @@ pub mod header_number {
     }
 }
 
-pub mod chain_config {
-    use super::*;
-
-    pub fn read<K: TransactionKind, E: EnvironmentKind>(
-        tx: &MdbxTransaction<'_, K, E>,
-    ) -> anyhow::Result<Option<ChainSpec>> {
-        trace!("Reading chain specification");
-
-        tx.get(tables::Config, ())
-    }
-}
-
 pub mod header {
     use super::*;
 

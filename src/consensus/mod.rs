@@ -167,6 +167,12 @@ pub enum DuoError {
 
 impl std::error::Error for DuoError {}
 
+impl From<NotFound> for DuoError {
+    fn from(e: NotFound) -> Self {
+        Self::Internal(e.into())
+    }
+}
+
 pub fn pre_validate_transaction(
     txn: &Message,
     canonical_chain_id: ChainId,

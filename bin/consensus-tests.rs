@@ -589,7 +589,7 @@ fn post_check(
         let account = state
             .read_account(address)
             .unwrap()
-            .ok_or_else(|| format_err!("Missing account {}", address))?;
+            .ok_or(NotFound::Account { address })?;
 
         ensure!(
             account.balance == expected_account_state.balance,

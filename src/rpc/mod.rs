@@ -28,6 +28,12 @@ mod helpers {
         }
     }
 
+    impl From<NotFound> for RpcError {
+        fn from(e: NotFound) -> Self {
+            anyhow::Error::from(e).into()
+        }
+    }
+
     pub fn resolve_block_number<K: TransactionKind, E: EnvironmentKind>(
         txn: &MdbxTransaction<'_, K, E>,
         block_number: ethereum_jsonrpc::types::BlockNumber,
@@ -157,17 +163,25 @@ mod helpers {
         txn: &MdbxTransaction<'_, K, E>,
         block_number: BlockNumber,
     ) -> Result<Vec<types::TransactionReceipt>, DuoError> {
-        let block_hash = chain::canonical_hash::read(txn, block_number)?
-            .ok_or_else(|| format_err!("no canonical header for block #{block_number:?}"))?;
+        let block_hash =
+            chain::canonical_hash::read(txn, block_number)?.ok_or(NotFound::CanonicalHash {
+                number: block_number,
+            })?;
         let header = PartialHeader::from(
-            chain::header::read(txn, block_hash, block_number)?.ok_or_else(|| {
-                format_err!("header not found for block #{block_number}/{block_hash}")
+            chain::header::read(txn, block_hash, block_number)?.ok_or(NotFound::Header {
+                number: block_number,
+                hash: block_hash,
             })?,
         );
         let block_body = chain::block_body::read_with_senders(txn, block_hash, block_number)?
-            .ok_or_else(|| format_err!("body not found for block #{block_number}/{block_hash}"))?;
-        let chain_spec = chain::chain_config::read(txn)?
-            .ok_or_else(|| format_err!("chain specification not found"))?;
+            .ok_or(NotFound::Body {
+                number: block_number,
+                hash: block_hash,
+            })?;
+        let chain_spec = txn
+            .get(tables::Config, ())?
+            .ok_or(NotFound::NodeConfig)?
+            .chainspec;
 
         // Prepare the execution context.
         let mut buffer = Buffer::new(txn, Some(BlockNumber(block_number.0 - 1)));

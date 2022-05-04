@@ -6,6 +6,7 @@ use crate::{
     stagedsync::{stage::*, stages::BODIES},
     StageId,
 };
+use anyhow::format_err;
 use async_trait::async_trait;
 use futures::stream::FuturesUnordered;
 use hashbrown::HashMap;
@@ -22,6 +23,7 @@ use std::{
 use tokio_stream::StreamExt;
 use tracing::*;
 
+const PRUNE_FACTOR: u64 = 20;
 const REQUEST_INTERVAL: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
@@ -94,6 +96,62 @@ where
         Ok(UnwindOutput {
             stage_progress: input.unwind_to,
         })
+    }
+
+    async fn prune<'tx>(
+        &mut self,
+        tx: &'tx mut MdbxTransaction<'db, RW, E>,
+        input: PruningInput,
+    ) -> anyhow::Result<()>
+    where
+        'db: 'tx,
+    {
+        let config = tx.get(tables::Config, ())?.ok_or(NotFound::NodeConfig)?;
+        let prune_seed = config.seed % PRUNE_FACTOR;
+
+        let mut block_body_cur = tx.cursor(tables::BlockBody)?;
+        let mut block_tx_cur = tx.cursor(tables::BlockTransaction)?;
+
+        let mut e = block_body_cur.first()?;
+        while let Some(((block_num, _), body)) = e {
+            if block_num >= input.prune_to {
+                break;
+            }
+
+            let segment = block_num.0 / 1024;
+
+            if segment % PRUNE_FACTOR != prune_seed {
+                if body.tx_amount > 0 {
+                    for i in 0..body.tx_amount {
+                        if i == 0 {
+                            block_tx_cur.seek_exact(body.base_tx_id)?.ok_or_else(|| {
+                                format_err!(
+                                    "tx with base id {} not found for block {}",
+                                    body.base_tx_id,
+                                    block_num
+                                )
+                            })?;
+                        } else {
+                            block_tx_cur.next()?.ok_or_else(|| {
+                                format_err!(
+                                    "tx with id base {}+{} not found for block {}",
+                                    body.base_tx_id,
+                                    i,
+                                    block_num
+                                )
+                            })?;
+                        }
+
+                        block_tx_cur.delete_current()?;
+                    }
+                }
+
+                block_body_cur.delete_current()?;
+            }
+            e = block_body_cur.next()?
+        }
+
+        Ok(())
     }
 }
 

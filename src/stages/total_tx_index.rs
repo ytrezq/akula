@@ -1,5 +1,6 @@
 use crate::{
     kv::{mdbx::*, tables},
+    models::*,
     stagedsync::{stage::*, stages::*},
     StageId,
 };
@@ -50,14 +51,14 @@ where
                     info!("Building total tx index for block {block_num}");
                 }
 
-                let canonical_hash =
-                    tx.get(tables::CanonicalHeader, block_num)?.ok_or_else(|| {
-                        format_err!("Canonical hash not found for block #{block_num}")
-                    })?;
+                let canonical_hash = tx
+                    .get(tables::CanonicalHeader, block_num)?
+                    .ok_or(NotFound::CanonicalHash { number: block_num })?;
                 let body = tx
                     .get(tables::BlockBody, (block_num, canonical_hash))?
-                    .ok_or_else(|| {
-                        format_err!("Body not found for block #{block_num}/{canonical_hash:?}")
+                    .ok_or(NotFound::Body {
+                        number: block_num,
+                        hash: canonical_hash,
                     })?;
 
                 tx_num += body.tx_amount as u64;

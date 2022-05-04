@@ -40,8 +40,12 @@ where
     }
 
     async fn chain_id(&self) -> RpcResult<U64> {
-        Ok(chain::chain_config::read(&self.db.begin()?)?
-            .ok_or_else(|| format_err!("chain specification not found"))?
+        Ok(self
+            .db
+            .begin()?
+            .get(tables::Config, ())?
+            .ok_or(NotFound::NodeConfig)?
+            .chainspec
             .params
             .chain_id
             .0
@@ -58,13 +62,18 @@ where
         let (block_number, block_hash) = helpers::resolve_block_id(&txn, block_number)?
             .ok_or_else(|| format_err!("failed to resolve block {block_number:?}"))?;
 
-        let header = chain::header::read(&txn, block_hash, block_number)?
-            .ok_or_else(|| format_err!("Header not found for #{block_number}/{block_hash}"))?;
+        let header =
+            chain::header::read(&txn, block_hash, block_number)?.ok_or(NotFound::Header {
+                number: block_number,
+                hash: block_hash,
+            })?;
 
         let mut state = Buffer::new(&txn, Some(block_number));
         let mut analysis_cache = AnalysisCache::default();
-        let block_spec = chain::chain_config::read(&txn)?
-            .ok_or_else(|| format_err!("no chainspec found"))?
+        let block_spec = txn
+            .get(tables::Config, ())?
+            .ok_or_else(|| anyhow::Error::from(NotFound::NodeConfig))?
+            .chainspec
             .collect_block_spec(block_number);
 
         let input = call_data.data.unwrap_or_default().into();
@@ -109,8 +118,10 @@ where
         let txn = self.db.begin()?;
         let (block_number, hash) = helpers::resolve_block_id(&txn, block_number)?
             .ok_or_else(|| format_err!("failed to resolve block {block_number:?}"))?;
-        let header = chain::header::read(&txn, hash, block_number)?
-            .ok_or_else(|| format_err!("no header found for block #{block_number}/{hash}"))?;
+        let header = chain::header::read(&txn, hash, block_number)?.ok_or(NotFound::Header {
+            number: block_number,
+            hash,
+        })?;
         let message = Message::Legacy {
             chain_id: None,
             nonce: 0,
@@ -130,8 +141,10 @@ where
         let mut db = InMemoryState::default();
         let mut state = IntraBlockState::new(&mut db);
         let mut cache = AnalysisCache::default();
-        let block_spec = chain::chain_config::read(&txn)?
-            .ok_or_else(|| format_err!("no chainspec found"))?
+        let block_spec = txn
+            .get(tables::Config, ())?
+            .ok_or_else(|| anyhow::Error::from(NotFound::NodeConfig))?
+            .chainspec
             .collect_block_spec(block_number);
         let mut tracer = NoopTracer;
         let gas_limit = header.gas_limit;
@@ -191,13 +204,16 @@ where
     async fn get_transaction_by_hash(&self, hash: H256) -> RpcResult<Option<types::Tx>> {
         let txn = self.db.begin()?;
         if let Some(block_number) = chain::tl::read(&txn, hash)? {
-            let block_hash = chain::canonical_hash::read(&txn, block_number)?
-                .ok_or_else(|| format_err!("canonical hash for block #{block_number} not found"))?;
+            let block_hash = chain::canonical_hash::read(&txn, block_number)?.ok_or(
+                NotFound::CanonicalHash {
+                    number: block_number,
+                },
+            )?;
             let (index, transaction) = chain::block_body::read_without_senders(
                 &txn,
                 block_hash,
                 block_number,
-            )?.ok_or_else(|| format_err!("body not found for block #{block_number}/{block_hash}"))?
+            )?.ok_or(NotFound::Body { number: block_number, hash: block_hash })?
             .transactions
             .into_iter()
             .enumerate()
@@ -247,7 +263,10 @@ where
             .ok_or_else(|| format_err!("no header number for hash {hash} found"))?;
         Ok(U64::from(
             chain::block_body::read_without_senders(&txn, hash, block_number)?
-                .ok_or_else(|| format_err!("no body found for block #{block_number}/{hash}"))?
+                .ok_or(NotFound::Body {
+                    number: block_number,
+                    hash,
+                })?
                 .transactions
                 .len(),
         ))
@@ -262,8 +281,9 @@ where
             .ok_or_else(|| format_err!("failed to resolve block {block_number:?}"))?;
         Ok(
             chain::block_body::read_without_senders(&txn, block_hash, block_number)?
-                .ok_or_else(|| {
-                    format_err!("body not found for block #{block_number}/{block_hash}")
+                .ok_or(NotFound::Body {
+                    number: block_number,
+                    hash: block_hash,
                 })?
                 .transactions
                 .len()
@@ -367,19 +387,30 @@ where
         let txn = self.db.begin()?;
 
         if let Some(block_number) = chain::tl::read(&txn, hash)? {
-            let block_hash = chain::canonical_hash::read(&txn, block_number)?
-                .ok_or_else(|| format_err!("no canonical header for block #{block_number:?}"))?;
+            let block_hash = chain::canonical_hash::read(&txn, block_number)?.ok_or_else(|| {
+                anyhow::Error::from(NotFound::CanonicalHash {
+                    number: block_number,
+                })
+            })?;
             let header = PartialHeader::from(
                 chain::header::read(&txn, block_hash, block_number)?.ok_or_else(|| {
-                    format_err!("header not found for block #{block_number}/{block_hash}")
+                    anyhow::Error::from(NotFound::Header {
+                        number: block_number,
+                        hash: block_hash,
+                    })
                 })?,
             );
             let block_body = chain::block_body::read_with_senders(&txn, block_hash, block_number)?
                 .ok_or_else(|| {
-                    format_err!("body not found for block #{block_number}/{block_hash}")
+                    anyhow::Error::from(NotFound::Body {
+                        number: block_number,
+                        hash: block_hash,
+                    })
                 })?;
-            let chain_spec = chain::chain_config::read(&txn)?
-                .ok_or_else(|| format_err!("chain specification not found"))?;
+            let chain_spec = txn
+                .get(tables::Config, ())?
+                .ok_or(NotFound::NodeConfig)?
+                .chainspec;
 
             // Prepare the execution context.
             let mut buffer = Buffer::new(&txn, Some(BlockNumber(block_number.0 - 1)));
@@ -399,7 +430,11 @@ where
                 &block_execution_spec,
             );
 
-            let transaction_index = chain::block_body::read_without_senders(&txn, block_hash, block_number)?.ok_or_else(|| format_err!("where's block body"))?.transactions
+            let transaction_index = chain::block_body::read_without_senders(&txn, block_hash, block_number)?.ok_or(NotFound::Body {
+                    number: block_number,
+                    hash: block_hash,
+                })?
+                .transactions
                 .into_iter()
                 .enumerate()
                 .find(|(_, tx)| tx.hash() == hash)

@@ -1,5 +1,6 @@
 use crate::{
     kv::{mdbx::*, tables},
+    models::*,
     stagedsync::{stage::*, stages::*},
     StageId,
 };
@@ -47,12 +48,13 @@ where
 
                 let canonical_hash = tx
                     .get(tables::CanonicalHeader, block_num)?
-                    .ok_or_else(|| format_err!("No canonical hash for block {block_num}"))?;
-                let header = tx
-                    .get(tables::Header, (block_num, canonical_hash))?
-                    .ok_or_else(|| {
-                        format_err!("No header for block #{block_num}/{canonical_hash:?}")
-                    })?;
+                    .ok_or(NotFound::CanonicalHash { number: block_num })?;
+                let header = tx.get(tables::Header, (block_num, canonical_hash))?.ok_or(
+                    NotFound::Header {
+                        number: block_num,
+                        hash: canonical_hash,
+                    },
+                )?;
 
                 gas += header.gas_used;
 

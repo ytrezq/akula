@@ -3,6 +3,7 @@ mod block;
 mod bloom;
 mod chainspec;
 mod config;
+mod errors;
 mod header;
 mod log;
 mod receipt;
@@ -10,8 +11,8 @@ mod revision;
 mod transaction;
 
 pub use self::{
-    account::*, block::*, bloom::*, chainspec::*, config::*, header::*, log::*, receipt::*,
-    revision::*, transaction::*,
+    account::*, block::*, bloom::*, chainspec::*, config::*, errors::*, header::*, log::*,
+    receipt::*, revision::*, transaction::*,
 };
 
 use derive_more::*;

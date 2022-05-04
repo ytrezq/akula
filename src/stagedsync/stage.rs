@@ -58,6 +58,12 @@ impl From<anyhow::Error> for StageError {
     }
 }
 
+impl From<NotFound> for StageError {
+    fn from(e: NotFound) -> Self {
+        StageError::Internal(e.into())
+    }
+}
+
 #[async_trait]
 #[auto_impl(&mut, Box)]
 pub trait Stage<'db, E>: Send + Sync + Debug

@@ -157,22 +157,23 @@ fn main() -> anyhow::Result<()> {
                         .context("failed to create ETL temp dir")?,
                 );
                 let db = Arc::new(akula::kv::new_database(&akula_chain_data_dir)?);
-                let chainspec = {
+                let config = {
                     let span = span!(Level::INFO, "", " Genesis initialization ");
                     let _g = span.enter();
                     let txn = db.begin_mutable()?;
-                    let (chainspec, initialized) =
-                        akula::genesis::initialize_genesis(&txn, &*etl_temp_dir, chain_config)?;
+                    let (config, initialized) =
+                        akula::genesis::initialize_config(&txn, &*etl_temp_dir, chain_config)?;
                     if initialized {
                         txn.commit()?;
                     }
 
-                    chainspec
+                    config
                 };
 
-                let consensus: Arc<dyn Consensus> = engine_factory(chainspec.clone())?.into();
+                let consensus: Arc<dyn Consensus> =
+                    engine_factory(config.chainspec.clone())?.into();
 
-                let chain_config = ChainConfig::from(chainspec);
+                let chain_config = ChainConfig::from(config.chainspec);
 
                 if let Some(listen_address) = opt.rpc_listen_address {
                     let db = db.clone();

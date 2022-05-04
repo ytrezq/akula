@@ -346,7 +346,13 @@ macro_rules! ron_table_object {
     };
 }
 
-ron_table_object!(ChainSpec);
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct NodeConfig {
+    pub seed: u64,
+    pub chainspec: ChainSpec,
+}
+
+ron_table_object!(NodeConfig);
 
 impl TableEncode for Address {
     type Encoded = [u8; ADDRESS_LENGTH];
@@ -792,7 +798,7 @@ decl_table!(CallTraceSet => BlockNumber => CallTraceSetEntry);
 decl_table!(CallFromIndex => BitmapKey<Address> => RoaringTreemap);
 decl_table!(CallToIndex => BitmapKey<Address> => RoaringTreemap);
 decl_table!(BlockTransactionLookup => H256 => TruncateStart<BlockNumber>);
-decl_table!(Config => () => ChainSpec);
+decl_table!(Config => () => NodeConfig);
 decl_table!(SyncStage => StageId => BlockNumber);
 decl_table!(PruneProgress => StageId => BlockNumber);
 decl_table!(TxSender => HeaderKey => Vec<Address>);

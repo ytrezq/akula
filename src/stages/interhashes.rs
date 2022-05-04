@@ -57,17 +57,15 @@ where
         let past_progress = input.stage_progress.unwrap_or(genesis);
 
         if max_block > past_progress {
+            let hash = tx
+                .get(tables::CanonicalHeader, max_block)?
+                .ok_or(NotFound::CanonicalHash { number: max_block })?;
             let block_state_root = tx
-                .get(
-                    tables::Header,
-                    (
-                        max_block,
-                        tx.get(tables::CanonicalHeader, max_block)?.ok_or_else(|| {
-                            format_err!("No canonical hash for block {}", max_block)
-                        })?,
-                    ),
-                )?
-                .ok_or_else(|| format_err!("No header for block {}", max_block))?
+                .get(tables::Header, (max_block, hash))?
+                .ok_or(NotFound::Header {
+                    number: max_block,
+                    hash,
+                })?
                 .state_root;
 
             let trie_root = if should_do_clean_promotion(

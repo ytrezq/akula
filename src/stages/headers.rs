@@ -3,7 +3,7 @@ use crate::{
     kv::{mdbx::*, tables},
     models::{BlockHeader, BlockNumber, ChainConfig, H256},
     p2p::{peer::*, types::*},
-    stagedsync::{stage::*, stages::HEADERS},
+    stagedsync::{stage::*, stages::HEADERS, util::prune_by_block_key},
 };
 use async_trait::async_trait;
 use futures::{future, stream::FuturesUnordered, FutureExt, StreamExt};
@@ -143,6 +143,26 @@ where
         Ok(UnwindOutput {
             stage_progress: input.unwind_to,
         })
+    }
+
+    async fn prune<'tx>(
+        &mut self,
+        tx: &'tx mut MdbxTransaction<'db, RW, E>,
+        input: PruningInput,
+    ) -> anyhow::Result<()>
+    where
+        'db: 'tx,
+    {
+        prune_by_block_key(tx, tables::CanonicalHeader, input, std::convert::identity)?;
+        prune_by_block_key(tx, tables::Header, input, |(block_number, _)| block_number)?;
+        prune_by_block_key(
+            tx,
+            tables::HeadersTotalDifficulty,
+            input,
+            |(block_number, _)| block_number,
+        )?;
+
+        Ok(())
     }
 }
 

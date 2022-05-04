@@ -12,7 +12,7 @@ use akula::{
     stagedsync,
     stages::*,
 };
-use anyhow::{bail, ensure, format_err, Context};
+use anyhow::{bail, ensure, Context};
 use bytes::Bytes;
 use clap::Parser;
 use itertools::Itertools;
@@ -132,7 +132,7 @@ async fn download_headers(
     std::fs::create_dir_all(&etl_temp_path)?;
     let env = akula::kv::new_database(&chain_data_dir)?;
     let txn = env.begin_mutable()?;
-    akula::genesis::initialize_genesis(
+    akula::genesis::initialize_config(
         &txn,
         &*Arc::new(tempfile::tempdir_in(etl_temp_path).context("failed to create ETL temp dir")?),
         Some(chain_config.chain_spec.clone()),
@@ -338,13 +338,19 @@ fn read_block(data_dir: AkulaDataDir, block_num: BlockNumber) -> anyhow::Result<
 
     let canonical_hash = tx
         .get(tables::CanonicalHeader, block_num)?
-        .ok_or_else(|| format_err!("no such canonical block"))?;
+        .ok_or(NotFound::CanonicalHash { number: block_num })?;
     let header = tx
         .get(tables::Header, (block_num, canonical_hash))?
-        .ok_or_else(|| format_err!("header not found"))?;
+        .ok_or(NotFound::Header {
+            number: block_num,
+            hash: canonical_hash,
+        })?;
     let body =
         akula::accessors::chain::block_body::read_without_senders(&tx, canonical_hash, block_num)?
-            .ok_or_else(|| format_err!("block body not found"))?;
+            .ok_or(NotFound::Body {
+                number: block_num,
+                hash: canonical_hash,
+            })?;
 
     let partial_header = PartialHeader::from(header.clone());
 

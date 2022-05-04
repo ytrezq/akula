@@ -57,7 +57,8 @@ where
 
         let chainspec = tx
             .get(tables::Config, ())?
-            .ok_or_else(|| format_err!("no chainspec found"))?;
+            .ok_or(NotFound::NodeConfig)?
+            .chainspec;
         let revision = chainspec.collect_block_spec(block_number).revision;
         let finalization_changes =
             engine_factory(chainspec)?.finalize(&header.into(), &ommers, revision)?;
@@ -154,14 +155,22 @@ where
     let mut prev_cumulative_gas_used = 0;
     let mut cumulative_gas_used = 0;
 
-    let block_hash = chain::canonical_hash::read(txn, block_number)?
-        .ok_or_else(|| format_err!("no canonical hash for block #{block_number}"))?;
+    let block_hash =
+        chain::canonical_hash::read(txn, block_number)?.ok_or(NotFound::CanonicalHash {
+            number: block_number,
+        })?;
     let header = chain::header::read(txn, block_hash, block_number)?
-        .ok_or_else(|| format_err!("no header for block #{block_number}"))?
+        .ok_or(NotFound::Header {
+            number: block_number,
+            hash: block_hash,
+        })?
         .into();
     let senders = chain::tx_sender::read(txn, block_hash, block_number)?;
     let messages = chain::block_body::read_without_senders(txn, block_hash, block_number)?
-        .ok_or_else(|| format_err!("where's block body"))?
+        .ok_or(NotFound::Body {
+            number: block_number,
+            hash: block_hash,
+        })?
         .transactions;
 
     for (&address, &balance) in &block_spec.balance_changes {
@@ -437,19 +446,26 @@ where
         let txn = self.db.begin()?;
 
         if let Some(block_number) = chain::tl::read(&txn, hash)? {
-            let block_hash = chain::canonical_hash::read(&txn, block_number)?
-                .ok_or_else(|| format_err!("no canonical header for block #{block_number:?}"))?;
+            let block_hash = chain::canonical_hash::read(&txn, block_number)?.ok_or(
+                NotFound::CanonicalHash {
+                    number: block_number,
+                },
+            )?;
             let header = PartialHeader::from(
-                chain::header::read(&txn, block_hash, block_number)?.ok_or_else(|| {
-                    format_err!("header not found for block #{block_number}/{block_hash}")
+                chain::header::read(&txn, block_hash, block_number)?.ok_or(NotFound::Header {
+                    number: block_number,
+                    hash: block_hash,
                 })?,
             );
             let block_body = chain::block_body::read_with_senders(&txn, block_hash, block_number)?
-                .ok_or_else(|| {
-                    format_err!("body not found for block #{block_number}/{block_hash}")
+                .ok_or(NotFound::Body {
+                    number: block_number,
+                    hash: block_hash,
                 })?;
-            let chain_spec = chain::chain_config::read(&txn)?
-                .ok_or_else(|| format_err!("chain specification not found"))?;
+            let chain_spec = txn
+                .get(tables::Config, ())?
+                .ok_or(NotFound::NodeConfig)?
+                .chainspec;
 
             // Prepare the execution context.
             let mut buffer = Buffer::new(&txn, Some(BlockNumber(block_number.0 - 1)));
@@ -469,7 +485,7 @@ where
                 &block_execution_spec,
             );
 
-            let transaction_index = chain::block_body::read_without_senders(&txn, block_hash, block_number)?.ok_or_else(|| format_err!("where's block body"))?.transactions
+            let transaction_index = chain::block_body::read_without_senders(&txn, block_hash, block_number)?.ok_or(NotFound::Body { number: block_number, hash: block_hash })?.transactions
                 .into_iter()
                 .enumerate()
                 .find(|(_, tx)| tx.hash() == hash)
@@ -498,9 +514,7 @@ where
         let call_from_cursor = dbtx.cursor(tables::CallFromIndex)?;
         let call_to_cursor = dbtx.cursor(tables::CallToIndex)?;
 
-        let chain_config = dbtx
-            .get(tables::Config, ())?
-            .ok_or_else(|| format_err!("chain spec not found"))?;
+        let node_config = dbtx.get(tables::Config, ())?.ok_or(NotFound::NodeConfig)?;
 
         let (start_block, first_page) = if let Some(b) = block_num.checked_sub(1) {
             // Internal search code considers block_num [including], so adjust the value
@@ -530,7 +544,7 @@ where
             (results, has_more) = trace_blocks(
                 &dbtx,
                 addr,
-                &chain_config,
+                &node_config.chainspec,
                 page_size,
                 result_count,
                 &mut call_from_to_provider,
@@ -569,9 +583,9 @@ where
         let call_from_cursor = dbtx.cursor(tables::CallFromIndex)?;
         let call_to_cursor = dbtx.cursor(tables::CallToIndex)?;
 
-        let chain_config = dbtx
+        let node_config = dbtx
             .get(tables::Config, ())?
-            .ok_or_else(|| format_err!("chain spec not found"))?;
+            .ok_or_else(|| anyhow::Error::from(NotFound::NodeConfig))?;
 
         let (start_block, last_page) = if block_num > 0 {
             // Internal search code considers block_num [including], so adjust the value
@@ -601,7 +615,7 @@ where
             (results, has_more) = trace_blocks(
                 &dbtx,
                 addr,
-                &chain_config,
+                &node_config.chainspec,
                 page_size,
                 result_count,
                 &mut call_from_to_provider,
@@ -729,7 +743,7 @@ where
 
             if let Some(a) = acc_change_cursor
                 .find_account(max_bl.into(), addr)?
-                .ok_or_else(|| format_err!("account not found"))?
+                .ok_or(NotFound::Account { address: addr })?
             {
                 if a.nonce > nonce {
                     acc = Some(a);
@@ -759,7 +773,7 @@ where
                 // Locate the block changeset
                 if let Some(acc) = acc_change_cursor
                     .find_account((*block).into(), addr)?
-                    .ok_or_else(|| format_err!("account not found"))?
+                    .ok_or(NotFound::Account { address: addr })?
                 {
                     // Since the state contains the nonce BEFORE the block changes, we look for
                     // the block when the nonce changed to be > the desired once, which means the
@@ -781,11 +795,17 @@ where
                 max_bl_prev_chunk
             };
 
-            let hash = crate::accessors::chain::canonical_hash::read(&tx, nonce_block)?
-                .ok_or_else(|| format_err!("canonical hash not found for block {nonce_block}"))?;
+            let hash = crate::accessors::chain::canonical_hash::read(&tx, nonce_block)?.ok_or(
+                NotFound::CanonicalHash {
+                    number: nonce_block,
+                },
+            )?;
             let txs =
                 crate::accessors::chain::block_body::read_without_senders(&tx, hash, nonce_block)?
-                    .ok_or_else(|| format_err!("body not found for block {nonce_block}"))?
+                    .ok_or(NotFound::Body {
+                        number: nonce_block,
+                        hash,
+                    })?
                     .transactions;
 
             Some({

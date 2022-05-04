@@ -1,5 +1,8 @@
 use crate::{
-    kv::{mdbx::*, tables},
+    kv::{
+        mdbx::*,
+        tables::{self, NodeConfig},
+    },
     models::*,
     res::chainspec::MAINNET,
     state::*,
@@ -61,26 +64,31 @@ impl GenesisState {
     }
 }
 
-pub fn initialize_genesis<'db, E>(
+pub fn initialize_config<'db, E>(
     txn: &MdbxTransaction<'db, RW, E>,
     etl_temp_dir: &TempDir,
     chainspec: Option<ChainSpec>,
-) -> anyhow::Result<(ChainSpec, bool)>
+) -> anyhow::Result<(NodeConfig, bool)>
 where
     E: EnvironmentKind,
 {
-    if let Some(existing_chainspec) = txn.get(tables::Config, ())? {
+    if let Some(existing_config) = txn.get(tables::Config, ())? {
         if let Some(chainspec) = chainspec {
-            if chainspec != existing_chainspec {
+            if chainspec != existing_config.chainspec {
                 return Err(format_err!(
                     "Genesis initialized, but chainspec does not match one in database"
                 ));
             }
         }
-        return Ok((existing_chainspec, false));
+        return Ok((existing_config, false));
     }
 
-    let chainspec = chainspec.unwrap_or_else(|| MAINNET.clone());
+    let config = NodeConfig {
+        seed: rand::random(),
+        chainspec: chainspec.unwrap_or_else(|| MAINNET.clone()),
+    };
+
+    let chainspec = &config.chainspec;
 
     let genesis = chainspec.genesis.number;
     let mut state_buffer = Buffer::new(txn, None);
@@ -150,9 +158,9 @@ where
 
     txn.set(tables::LastHeader, (), (BlockNumber(0), block_hash))?;
 
-    txn.set(tables::Config, (), chainspec.clone())?;
+    txn.set(tables::Config, (), config.clone())?;
 
-    Ok((chainspec, true))
+    Ok((config, true))
 }
 
 #[cfg(test)]
@@ -189,7 +197,7 @@ mod tests {
         let tx = db.begin_mutable().unwrap();
 
         let temp_dir = TempDir::new().unwrap();
-        assert!(initialize_genesis(&tx, &temp_dir, None).unwrap().1);
+        assert!(initialize_config(&tx, &temp_dir, None).unwrap().1);
 
         let genesis_hash = tx.get(tables::CanonicalHeader, 0.into()).unwrap().unwrap();
 
