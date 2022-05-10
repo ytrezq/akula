@@ -98,29 +98,29 @@ impl ConsensusEngineBase {
     // See [YP] Section 11.1 "Ommer Validation"
     fn is_kin(
         &self,
-        branch_header: &BlockHeader,
+        ommer: &BlockHeader,
         mainline_header: &BlockHeader,
         mainline_hash: H256,
         n: usize,
         state: &dyn BlockState,
         old_ommers: &mut Vec<BlockHeader>,
     ) -> anyhow::Result<bool> {
-        if n > 0 && branch_header != mainline_header {
+        if n > 0 && ommer != mainline_header {
             if let Some(mainline_body) = state.read_body(mainline_header.number, mainline_hash)? {
                 old_ommers.extend_from_slice(&mainline_body.ommers);
 
                 let mainline_parent = state.read_parent_header(mainline_header)?;
-                let branch_parent = state.read_parent_header(branch_header)?;
+                let ommer_parent = state.read_parent_header(ommer)?;
 
                 if let Some(mainline_parent) = mainline_parent {
-                    if let Some(branch_parent) = branch_parent {
-                        if branch_parent == mainline_parent {
+                    if let Some(ommer_parent) = ommer_parent {
+                        if ommer_parent == mainline_parent {
                             return Ok(true);
                         }
                     }
 
                     return self.is_kin(
-                        branch_header,
+                        ommer,
                         &mainline_parent,
                         mainline_header.parent_hash,
                         n - 1,
