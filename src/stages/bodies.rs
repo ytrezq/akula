@@ -78,7 +78,7 @@ where
         let mut block_body_cur = txn.cursor(tables::BlockBody)?;
         let mut block_tx_cur = txn.cursor(tables::BlockTransaction)?;
 
-        while let Some(((number, _), body)) = block_body_cur.last()? {
+        while let Some((number, body)) = block_body_cur.last()? {
             if number <= input.unwind_to {
                 break;
             }
@@ -237,7 +237,7 @@ impl BodyDownload {
         let mut hash_cur = txn.cursor(tables::CanonicalHeader)?;
         let mut base_tx_id = cursor
             .last()?
-            .map(|((_, _), body)| *body.base_tx_id + body.tx_amount)
+            .map(|(_, body)| *body.base_tx_id + body.tx_amount)
             .unwrap();
 
         // Skipping genesis block, because it's already inserted.
@@ -251,11 +251,7 @@ impl BodyDownload {
             });
 
             let block = Block {
-                header: header_cur
-                    .seek_exact((block_number, hash))
-                    .unwrap()
-                    .unwrap()
-                    .1,
+                header: header_cur.seek_exact(block_number).unwrap().unwrap().1,
                 transactions: body.transactions,
                 ommers: body.ommers,
             };
@@ -271,7 +267,7 @@ impl BodyDownload {
                 })?;
 
             cursor.append(
-                (block_number, hash),
+                block_number,
                 BodyForStorage {
                     base_tx_id: TxIndex(base_tx_id),
                     tx_amount: block.transactions.len() as u64,
@@ -304,7 +300,7 @@ impl BodyDownload {
         let mut header_cursor = txn.cursor(tables::Header)?;
 
         while let Some(Ok((block_number, hash))) = canonical_cursor.next() {
-            let (_, header) = header_cursor.seek_exact((block_number, hash))?.unwrap();
+            let (_, header) = header_cursor.seek_exact(block_number)?.unwrap();
             if header.ommers_hash == EMPTY_LIST_HASH && header.transactions_root == EMPTY_ROOT {
                 continue;
             }

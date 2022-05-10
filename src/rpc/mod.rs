@@ -69,23 +69,20 @@ mod helpers {
         if let Some((block_number, block_hash)) = resolve_block_id(txn, block_id)? {
             if let Some((block_number, block_hash, header)) = {
                 if let Some(n) = uncle_index {
-                    txn.get(tables::BlockBody, (block_number, block_hash))?
-                        .and_then(|body| {
-                            body.uncles
-                                .get(n.as_usize())
-                                .cloned()
-                                .map(|uncle| (uncle.number, uncle.hash(), uncle))
-                        })
+                    txn.get(tables::BlockBody, block_number)?.and_then(|body| {
+                        body.uncles
+                            .get(n.as_usize())
+                            .cloned()
+                            .map(|uncle| (uncle.number, uncle.hash(), uncle))
+                    })
                 } else {
-                    txn.get(tables::Header, (block_number, block_hash))?
+                    txn.get(tables::Header, block_number)?
                         .map(|header| (block_number, block_hash, header))
                 }
             } {
-                if let Some(body) =
-                    chain::block_body::read_without_senders(txn, block_hash, block_number)?
-                {
+                if let Some(body) = chain::block_body::read_without_senders(txn, block_number)? {
                     let transactions: Vec<types::Tx> = if include_txs {
-                        let senders = chain::tx_sender::read(txn, block_hash, block_number)?;
+                        let senders = chain::tx_sender::read(txn, block_number)?;
                         body.transactions
                             .into_iter()
                             .zip(senders)
@@ -122,7 +119,7 @@ mod helpers {
                             .collect()
                     };
 
-                    let td = chain::td::read(txn, block_hash, block_number)?;
+                    let td = chain::td::read(txn, block_number)?;
 
                     return Ok(Some(types::Block {
                         number: Some(U64::from(block_number.0)),
@@ -160,12 +157,11 @@ mod helpers {
         let block_hash = chain::canonical_hash::read(txn, block_number)?
             .ok_or_else(|| format_err!("no canonical header for block #{block_number:?}"))?;
         let header = PartialHeader::from(
-            chain::header::read(txn, block_hash, block_number)?.ok_or_else(|| {
-                format_err!("header not found for block #{block_number}/{block_hash}")
-            })?,
+            chain::header::read(txn, block_number)?
+                .ok_or_else(|| format_err!("header not found for block #{block_number}"))?,
         );
-        let block_body = chain::block_body::read_with_senders(txn, block_hash, block_number)?
-            .ok_or_else(|| format_err!("body not found for block #{block_number}/{block_hash}"))?;
+        let block_body = chain::block_body::read_with_senders(txn, block_number)?
+            .ok_or_else(|| format_err!("body not found for block #{block_number}"))?;
         let chain_spec = chain::chain_config::read(txn)?
             .ok_or_else(|| format_err!("chain specification not found"))?;
 

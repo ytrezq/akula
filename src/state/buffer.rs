@@ -90,20 +90,12 @@ where
     K: TransactionKind,
     E: EnvironmentKind,
 {
-    fn read_header(
-        &self,
-        block_number: BlockNumber,
-        block_hash: H256,
-    ) -> anyhow::Result<Option<BlockHeader>> {
-        self.get(tables::Header, (block_number, block_hash))
+    fn read_header(&self, block_number: BlockNumber) -> anyhow::Result<Option<BlockHeader>> {
+        self.get(tables::Header, block_number)
     }
 
-    fn read_body(
-        &self,
-        block_number: BlockNumber,
-        block_hash: H256,
-    ) -> anyhow::Result<Option<BlockBody>> {
-        accessors::chain::block_body::read_without_senders(self, block_hash, block_number)
+    fn read_body(&self, block_number: BlockNumber) -> anyhow::Result<Option<BlockBody>> {
+        accessors::chain::block_body::read_without_senders(self, block_number)
     }
 }
 
@@ -219,14 +211,6 @@ where
         }
 
         Ok(())
-    }
-
-    fn total_difficulty(
-        &self,
-        block_number: BlockNumber,
-        block_hash: H256,
-    ) -> anyhow::Result<Option<U256>> {
-        accessors::chain::td::read(self.txn, block_hash, block_number)
     }
 
     /// State changes

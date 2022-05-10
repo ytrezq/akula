@@ -49,11 +49,8 @@ where
         let block_number = block.number.unwrap().as_u64().into();
         let block_hash = block.hash.unwrap();
 
-        let header = tx.get(tables::Header, (block_number, block_hash))?.unwrap();
-        let ommers = tx
-            .get(tables::BlockBody, (block_number, block_hash))?
-            .unwrap()
-            .uncles;
+        let header = tx.get(tables::Header, block_number)?.unwrap();
+        let ommers = tx.get(tables::BlockBody, block_number)?.unwrap().uncles;
 
         let chainspec = tx
             .get(tables::Config, ())?
@@ -156,11 +153,11 @@ where
 
     let block_hash = chain::canonical_hash::read(txn, block_number)?
         .ok_or_else(|| format_err!("no canonical hash for block #{block_number}"))?;
-    let header = chain::header::read(txn, block_hash, block_number)?
+    let header = chain::header::read(txn, block_number)?
         .ok_or_else(|| format_err!("no header for block #{block_number}"))?
         .into();
-    let senders = chain::tx_sender::read(txn, block_hash, block_number)?;
-    let messages = chain::block_body::read_without_senders(txn, block_hash, block_number)?
+    let senders = chain::tx_sender::read(txn, block_number)?;
+    let messages = chain::block_body::read_without_senders(txn, block_number)?
         .ok_or_else(|| format_err!("where's block body"))?
         .transactions;
 
@@ -437,17 +434,12 @@ where
         let txn = self.db.begin()?;
 
         if let Some(block_number) = chain::tl::read(&txn, hash)? {
-            let block_hash = chain::canonical_hash::read(&txn, block_number)?
-                .ok_or_else(|| format_err!("no canonical header for block #{block_number:?}"))?;
             let header = PartialHeader::from(
-                chain::header::read(&txn, block_hash, block_number)?.ok_or_else(|| {
-                    format_err!("header not found for block #{block_number}/{block_hash}")
-                })?,
+                chain::header::read(&txn, block_number)?
+                    .ok_or_else(|| format_err!("header not found for block #{block_number}"))?,
             );
-            let block_body = chain::block_body::read_with_senders(&txn, block_hash, block_number)?
-                .ok_or_else(|| {
-                    format_err!("body not found for block #{block_number}/{block_hash}")
-                })?;
+            let block_body = chain::block_body::read_with_senders(&txn, block_number)?
+                .ok_or_else(|| format_err!("body not found for block #{block_number}"))?;
             let chain_spec = chain::chain_config::read(&txn)?
                 .ok_or_else(|| format_err!("chain specification not found"))?;
 
@@ -469,15 +461,22 @@ where
                 &block_execution_spec,
             );
 
-            let transaction_index = chain::block_body::read_without_senders(&txn, block_hash, block_number)?.ok_or_else(|| format_err!("where's block body"))?.transactions
+            let transaction_index = chain::block_body::read_without_senders(&txn, block_number)?.ok_or_else(|| format_err!("where's block body"))?.transactions
                 .into_iter()
                 .enumerate()
                 .find(|(_, tx)| tx.hash() == hash)
-                .ok_or_else(|| format_err!("transaction {hash} not found in block #{block_number}/{block_hash} despite lookup index"))?.0;
+                .ok_or_else(|| format_err!("transaction {hash} not found in block #{block_number} despite lookup index"))?.0;
 
             processor.execute_block_no_post_validation_while(|i, _| i < transaction_index)?;
 
-            let tx = block_body.transactions.get(transaction_index).ok_or_else(|| format_err!("block #{block_number}/{block_hash} too short: tx #{transaction_index} not in body"))?;
+            let tx = block_body
+                .transactions
+                .get(transaction_index)
+                .ok_or_else(|| {
+                    format_err!(
+                        "block #{block_number} too short: tx #{transaction_index} not in body"
+                    )
+                })?;
             let mut operations_tracer = OperationsTracer::default();
             processor.set_tracer(&mut operations_tracer);
             processor.execute_transaction(&tx.message, tx.sender)?;
@@ -781,12 +780,9 @@ where
                 max_bl_prev_chunk
             };
 
-            let hash = crate::accessors::chain::canonical_hash::read(&tx, nonce_block)?
-                .ok_or_else(|| format_err!("canonical hash not found for block {nonce_block}"))?;
-            let txs =
-                crate::accessors::chain::block_body::read_without_senders(&tx, hash, nonce_block)?
-                    .ok_or_else(|| format_err!("body not found for block {nonce_block}"))?
-                    .transactions;
+            let txs = crate::accessors::chain::block_body::read_without_senders(&tx, nonce_block)?
+                .ok_or_else(|| format_err!("body not found for block {nonce_block}"))?
+                .transactions;
 
             Some({
                 txs

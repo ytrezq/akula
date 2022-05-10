@@ -112,7 +112,7 @@ where
         let mut cursor_header = txn.cursor(tables::Header)?;
         let mut cursor_canonical = txn.cursor(tables::CanonicalHeader)?;
         let mut cursor_td = txn.cursor(tables::HeadersTotalDifficulty)?;
-        let mut td = cursor_td.last()?.map(|((_, _), v)| v).unwrap();
+        let mut td = cursor_td.last()?.map(|(_, v)| v).unwrap();
 
         for (hash, header) in headers {
             if header.number == 0 {
@@ -298,9 +298,7 @@ impl HeaderDownload {
         height: BlockNumber,
     ) -> anyhow::Result<()> {
         let hash = txn.get(tables::CanonicalHeader, height)?.unwrap();
-        let td = txn
-            .get(tables::HeadersTotalDifficulty, (height, hash))?
-            .unwrap();
+        let td = txn.get(tables::HeadersTotalDifficulty, height)?.unwrap();
         let status = Status::new(height, hash, td);
         self.node.update_chain_head(Some(status)).await?;
 
