@@ -1279,7 +1279,7 @@ dependencies = [
 [[package]]
 name = "ethereum-jsonrpc"
 version = "0.1.0"
-source = "git+https://github.com/rust-ethereum/jsonrpc#f229a8e63fd80f43514f8141c888f6be05b4c151"
+source = "git+https://github.com/rust-ethereum/jsonrpc?branch=vorot93/engine#f22ec79a132374707ec6c3d3434c61189ee9b45c"
 dependencies = [
  "bytes",
  "ethereum-types",
