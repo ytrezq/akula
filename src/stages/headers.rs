@@ -113,7 +113,8 @@ where
 
             info!("Download session {starting_block} to {target_block}");
 
-            headers.extend(self.download_headers(starting_block, target_block).await?);
+            let downloaded = self.download_headers(starting_block, target_block).await?;
+            continue;
             if let Some((_, h)) = headers.first() {
                 if h.parent_hash != prev_progress_hash {
                     return Ok(ExecOutput::Unwind {
