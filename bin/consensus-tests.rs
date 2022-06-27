@@ -20,7 +20,7 @@ use once_cell::sync::Lazy;
 use serde::{de, Deserialize};
 use serde_json::{Map, Value};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
     convert::TryInto,
     fmt::Debug,
     ops::AddAssign,
@@ -1053,4 +1053,104 @@ fn main() {
         .build()
         .unwrap()
         .block_on(run());
+}
+
+#[derive(Clone, Debug)]
+pub struct HeadersCache {
+    pub by_hash: HashMap<H256, BlockHeader>,
+    pub td_to_hashes: BTreeMap<U256, HashSet<H256>>,
+    pub hashes_to_td: HashMap<H256, U256>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum InsertStatus {
+    Inserted,
+    AlreadyExists,
+    NoParent,
+}
+
+pub enum CanonicalStatus {
+    Canonical,
+    BestAncestor(Option<(BlockNumber, H256)>),
+}
+
+impl HeadersCache {
+    pub fn new(genesis: BlockHeader) -> Self {
+        let hash = genesis.hash();
+        Self {
+            td_to_hashes: [(genesis.difficulty, [hash].iter().cloned().collect())]
+                .iter()
+                .cloned()
+                .collect(),
+            hashes_to_td: [(hash, genesis.difficulty)].iter().cloned().collect(),
+            by_hash: [(hash, genesis)].iter().cloned().collect(),
+        }
+    }
+
+    pub fn add_header(&mut self, header: BlockHeader) -> InsertStatus {
+        let hash = header.hash();
+        let parent = header.parent_hash;
+        if let Some(parent_td) = self.hashes_to_td.get(&parent) {
+            match self.by_hash.entry(hash) {
+                Entry::Vacant(e) => {
+                    let td = parent_td + header.difficulty;
+                    self.td_to_hashes.entry(td).or_default().insert(hash);
+                    self.hashes_to_td.insert(hash, td);
+                    e.insert(header);
+
+                    InsertStatus::Inserted
+                }
+                Entry::Occupied(_) => InsertStatus::AlreadyExists,
+            }
+        } else {
+            InsertStatus::NoParent
+        }
+    }
+
+    pub fn best_chain_by_td(&self, len: usize) -> Vec<(H256, BlockHeader)> {
+        let mut current_hash = *self
+            .td_to_hashes
+            .iter()
+            .rev()
+            .next()
+            .unwrap()
+            .1
+            .iter()
+            .next()
+            .unwrap();
+
+        let mut chain = Vec::new();
+        for _ in 0..len {
+            let header = self.by_hash[&current_hash].clone();
+            let parent = header.parent_hash;
+            chain.push((current_hash, header));
+            current_hash = parent;
+        }
+        chain
+    }
+
+    pub fn best_chain_by_td_from_root(&self, from_block: H256) -> Option<Vec<(H256, BlockHeader)>> {
+        let parent_number = self.by_hash[&from_block].number;
+
+        let best_td_entry = self.td_to_hashes.iter().rev().next().unwrap();
+        let best_hash = *best_td_entry.1.iter().next().unwrap();
+
+        self.by_hash[&best_hash]
+            .number
+            .checked_sub(parent_number.0)
+            .and_then(|chain_length| {
+                let mut best_chain = self.best_chain_by_td(chain_length as usize);
+
+                if let Some(earliest) = best_chain.last() {
+                    if earliest.1.parent_hash != from_block {
+                        return None;
+                    }
+                } else if best_hash != from_block {
+                    return None;
+                }
+
+                best_chain.reverse();
+                Some(best_chain)
+            })
+    }
 }
