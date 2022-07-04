@@ -414,7 +414,7 @@ pub const fn has_const_gas_cost<const OPCODE: OpCode>() -> bool {
 }
 
 pub const fn opcode_gas_cost<const REVISION: Revision, const OPCODE: OpCode>() -> i16 {
-    GAS_COSTS[REVISION as usize][OPCODE.to_usize()]
+    const { GAS_COSTS[REVISION as usize][OPCODE.to_usize()] }
 }
 
 const fn property_table() -> [Option<Properties>; 256] {

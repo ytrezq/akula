@@ -1,7 +1,12 @@
 use self::instruction_table::*;
 use super::{
     common::{InterpreterMessage, *},
-    instructions::{control::*, stack_manip::*, *},
+    instructions::{
+        control::*,
+        properties::{has_const_gas_cost, GAS_COSTS},
+        stack_manip::*,
+        *,
+    },
     state::*,
     *,
 };
@@ -26,6 +31,43 @@ fn check_requirements(
         }
     } else if stack_size < metrics.stack_height_required.into() {
         return Err(StatusCode::StackUnderflow);
+    }
+
+    Ok(())
+}
+
+const fn const_check_requirements<const REVISION: Revision, const OPCODE: OpCode>(
+    gas_left: &mut i64,
+    stack_size: usize,
+) -> Result<(), StatusCode> {
+    let mut gas_cost =
+        const { GAS_COSTS[Revision::Frontier as usize][{ OPCODE }.to_usize()] as i64 };
+    if const { !has_const_gas_cost::<OPCODE>() } {
+        gas_cost = const { GAS_COSTS[REVISION as usize][OPCODE.to_usize()] as i64 };
+
+        if gas_cost < 0 {
+            return Err(StatusCode::UndefinedInstruction);
+        }
+    }
+
+    // Check stack requirements first. This is order is not required,
+    // but it is nicer because complete gas check may need to inspect operands.
+    if const { PROPERTIES[OPCODE.to_usize()].unwrap().stack_height_change > 0 } {
+        assert!(PROPERTIES[OPCODE.to_usize()].unwrap().stack_height_change == 1);
+        if stack_size == STACK_SIZE {
+            return Err(StatusCode::StackOverflow);
+        }
+    }
+    if const { PROPERTIES[OPCODE.to_usize()].unwrap().stack_height_required > 0 }
+        && stack_size
+            < const { PROPERTIES[OPCODE.to_usize()].unwrap().stack_height_required as usize }
+    {
+        return Err(StatusCode::StackOverflow);
+    }
+
+    *gas_left -= gas_cost;
+    if *gas_left < 0 {
+        return Err(StatusCode::OutOfGas);
     }
 
     Ok(())
