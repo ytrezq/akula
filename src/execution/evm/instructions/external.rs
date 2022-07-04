@@ -247,7 +247,7 @@ pub(crate) fn sstore<H: Host, const REVISION: Revision>(
     let value = state.stack.pop();
 
     let mut cost = 0;
-    if REVISION >= Revision::Berlin {
+    if const { REVISION as u8 >= Revision::Berlin as u8 } {
         if host.access_storage(state.message.recipient, location) == AccessStatus::Cold {
             cost = COLD_SLOAD_COST;
         }
@@ -257,16 +257,20 @@ pub(crate) fn sstore<H: Host, const REVISION: Revision>(
         StorageStatus::Unchanged | StorageStatus::ModifiedAgain => {
             if REVISION >= Revision::Berlin {
                 cost + WARM_STORAGE_READ_COST
-            } else if REVISION == Revision::Istanbul {
-                800
-            } else if REVISION == Revision::Constantinople {
-                200
             } else {
-                5000
+                const {
+                    if REVISION as u8 == Revision::Istanbul as u8 {
+                        800
+                    } else if REVISION as u8 == Revision::Constantinople as u8 {
+                        200
+                    } else {
+                        5000
+                    }
+                }
             }
         }
         StorageStatus::Modified | StorageStatus::Deleted => {
-            if REVISION >= Revision::Berlin {
+            if const { REVISION as u8 >= Revision::Berlin as u8 } {
                 cost + 5000 - COLD_SLOAD_COST
             } else {
                 5000

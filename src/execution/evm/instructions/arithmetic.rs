@@ -130,10 +130,12 @@ pub(crate) fn exp<const REVISION: Revision>(state: &mut ExecutionState) -> Resul
     let mut power = state.stack.pop();
 
     if power > 0 {
-        let factor = if REVISION >= Revision::Spurious {
-            50
-        } else {
-            10
+        let factor = const {
+            if REVISION as u8 >= Revision::Spurious as u8 {
+                50
+            } else {
+                10
+            }
         };
         let additional_gas = factor * (log2floor(power) / 8 + 1);
 

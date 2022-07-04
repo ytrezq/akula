@@ -41,7 +41,7 @@ pub(crate) fn do_call<
 
     state.stack.push(U256::ZERO); // Assume failure.
 
-    if REVISION >= Revision::Berlin {
+    if const { REVISION as u8 >= Revision::Berlin as u8 } {
         if host.access_account(dst) == AccessStatus::Cold {
             state.gas_left -= i64::from(ADDITIONAL_COLD_ACCOUNT_ACCESS_COST);
             if state.gas_left < 0 {
@@ -90,7 +90,9 @@ pub(crate) fn do_call<
             return Err(StatusCode::StaticModeViolation);
         }
 
-        if (has_value || REVISION < Revision::Spurious) && !host.account_exists(dst) {
+        if (has_value || const { (REVISION as u8) < Revision::Spurious as u8 })
+            && !host.account_exists(dst)
+        {
             cost += 25000;
         }
     }
@@ -103,7 +105,7 @@ pub(crate) fn do_call<
         msg.gas = gas.as_usize() as i64;
     }
 
-    if REVISION >= Revision::Tangerine {
+    if const { REVISION as u8 >= Revision::Tangerine as u8 } {
         // TODO: Always true for STATICCALL.
         msg.gas = min(msg.gas, state.gas_left - state.gas_left / 64);
     } else if msg.gas > state.gas_left {
@@ -189,7 +191,7 @@ pub(crate) fn do_create<H: Host, const REVISION: Revision, const CREATE2: bool>(
         && !(endowment != 0 && host.get_balance(state.message.recipient) < endowment)
     {
         let msg = CreateMessage {
-            gas: if REVISION >= Revision::Tangerine {
+            gas: if const { REVISION as u8 >= Revision::Tangerine as u8 } {
                 state.gas_left - state.gas_left / 64
             } else {
                 state.gas_left
