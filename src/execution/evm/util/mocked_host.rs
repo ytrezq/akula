@@ -1,4 +1,8 @@
-use crate::execution::evm::{host::*, *};
+use crate::execution::{
+    evm::{host::*, state::Memory, *},
+    evmglue::MemoryBank,
+    tracer::NoopTracer,
+};
 use bytes::Bytes;
 use ethereum_types::*;
 use ethnum::U256;
@@ -65,6 +69,7 @@ pub struct Records {
 
 #[derive(Clone, Debug)]
 pub struct MockedHost {
+    pub memory_bank: MemoryBank,
     pub accounts: HashMap<Address, Account>,
     pub tx_context: TxContext,
     pub block_hash: U256,
@@ -75,6 +80,7 @@ pub struct MockedHost {
 impl Default for MockedHost {
     fn default() -> Self {
         Self {
+            memory_bank: MemoryBank::default(),
             accounts: Default::default(),
             tx_context: TxContext {
                 tx_gas_price: U256::ZERO,
@@ -108,6 +114,17 @@ impl Records {
 }
 
 impl Host for MockedHost {
+    fn tracer(
+        &mut self,
+        mut f: impl FnMut(&mut dyn crate::execution::tracer::Tracer, &MemoryBank),
+    ) {
+        (f)(&mut NoopTracer, &self.memory_bank)
+    }
+
+    fn get_memory(&mut self, depth: u16) -> &mut Memory {
+        &mut self.memory_bank[depth as usize]
+    }
+
     fn account_exists(&mut self, address: ethereum_types::Address) -> bool {
         self.recorded.record_account_access(address);
         self.accounts.contains_key(&address)

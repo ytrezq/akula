@@ -1,4 +1,4 @@
-use super::{analysis_cache::AnalysisCache, tracer::Tracer};
+use super::{analysis_cache::AnalysisCache, evmglue::MemoryBank, tracer::Tracer};
 use crate::{
     chain::{
         intrinsic_gas::*,
@@ -21,6 +21,7 @@ where
 {
     state: IntraBlockState<'r, S>,
     tracer: &'tracer mut dyn Tracer,
+    memory_bank: &'analysis mut MemoryBank,
     analysis_cache: &'analysis mut AnalysisCache,
     engine: &'e mut dyn Consensus,
     header: &'h PartialHeader,
@@ -67,6 +68,7 @@ pub fn execute_transaction<'r, S>(
     block_spec: &BlockExecutionSpec,
     header: &PartialHeader,
     tracer: &mut dyn Tracer,
+    memory_bank: &mut MemoryBank,
     analysis_cache: &mut AnalysisCache,
     cumulative_gas_used: &mut u64,
     message: &Message,
@@ -119,6 +121,7 @@ where
         // https://github.com/rust-lang/rust-clippy/issues/7846
         #[allow(clippy::needless_option_as_deref)]
         tracer,
+        memory_bank,
         analysis_cache,
         header,
         block_spec,
@@ -184,6 +187,7 @@ where
     pub fn new(
         state: &'r mut S,
         tracer: &'tracer mut dyn Tracer,
+        memory_bank: &'analysis mut MemoryBank,
         analysis_cache: &'analysis mut AnalysisCache,
         engine: &'e mut dyn Consensus,
         header: &'h PartialHeader,
@@ -193,6 +197,7 @@ where
         Self {
             state: IntraBlockState::new(state),
             tracer,
+            memory_bank,
             analysis_cache,
             engine,
             header,
@@ -292,6 +297,7 @@ where
             self.block_spec,
             self.header,
             self.tracer,
+            self.memory_bank,
             self.analysis_cache,
             &mut self.cumulative_gas_used,
             message,
@@ -434,6 +440,7 @@ mod tests {
         };
 
         let mut state = InMemoryState::default();
+        let mut memory_bank = MemoryBank::default();
         let mut analysis_cache = AnalysisCache::default();
         let mut engine = engine_factory(None, MAINNET.clone()).unwrap();
         let block_spec = MAINNET.collect_block_spec(header.number);
@@ -441,6 +448,7 @@ mod tests {
         let mut processor = ExecutionProcessor::new(
             &mut state,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut *engine,
             &header,
@@ -476,6 +484,7 @@ mod tests {
         let block = Default::default();
 
         let mut state = InMemoryState::default();
+        let mut memory_bank = MemoryBank::default();
         let mut analysis_cache = AnalysisCache::default();
         let mut engine = engine_factory(None, MAINNET.clone()).unwrap();
         let block_spec = MAINNET.collect_block_spec(header.number);
@@ -483,6 +492,7 @@ mod tests {
         let mut processor = ExecutionProcessor::new(
             &mut state,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut *engine,
             &header,
@@ -539,6 +549,7 @@ mod tests {
         // 23     BALANCE
 
         let mut state = InMemoryState::default();
+        let mut memory_bank = MemoryBank::default();
         let mut analysis_cache = AnalysisCache::default();
         let mut engine = engine_factory(None, MAINNET.clone()).unwrap();
         let block_spec = MAINNET.collect_block_spec(header.number);
@@ -546,6 +557,7 @@ mod tests {
         let mut processor = ExecutionProcessor::new(
             &mut state,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut *engine,
             &header,
@@ -655,6 +667,7 @@ mod tests {
         // 38     CALL
 
         let mut state = InMemoryState::default();
+        let mut memory_bank = MemoryBank::default();
         let mut analysis_cache = AnalysisCache::default();
         let mut engine = engine_factory(None, MAINNET.clone()).unwrap();
         let block_spec = MAINNET.collect_block_spec(header.number);
@@ -662,6 +675,7 @@ mod tests {
         let mut processor = ExecutionProcessor::new(
             &mut state,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut *engine,
             &header,
@@ -759,6 +773,7 @@ mod tests {
             ).to_vec().into(),
         };
 
+        let mut memory_bank = MemoryBank::default();
         let mut analysis_cache = AnalysisCache::default();
         let mut engine = engine_factory(None, MAINNET.clone()).unwrap();
         let block_spec = MAINNET.collect_block_spec(header.number);
@@ -766,6 +781,7 @@ mod tests {
         let mut processor = ExecutionProcessor::new(
             &mut state,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut *engine,
             &header,
@@ -812,6 +828,7 @@ mod tests {
         };
 
         let mut state = InMemoryState::default();
+        let mut memory_bank = MemoryBank::default();
         let mut analysis_cache = AnalysisCache::default();
         let mut engine = engine_factory(None, MAINNET.clone()).unwrap();
         let block_spec = MAINNET.collect_block_spec(header.number);
@@ -819,6 +836,7 @@ mod tests {
         let mut processor = ExecutionProcessor::new(
             &mut state,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut *engine,
             &header,

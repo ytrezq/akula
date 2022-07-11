@@ -7,7 +7,8 @@ mod helpers {
         accessors::chain,
         consensus::{engine_factory, DuoError},
         execution::{
-            analysis_cache::AnalysisCache, processor::ExecutionProcessor, tracer::NoopTracer,
+            analysis_cache::AnalysisCache, evmglue::MemoryBank, processor::ExecutionProcessor,
+            tracer::NoopTracer,
         },
         kv::{mdbx::*, tables},
         models::*,
@@ -175,12 +176,14 @@ mod helpers {
 
         let block_execution_spec = chain_spec.collect_block_spec(block_number);
         let mut engine = engine_factory(None, chain_spec)?;
+        let mut memory_bank = MemoryBank::default();
         let mut analysis_cache = AnalysisCache::default();
         let mut tracer = NoopTracer;
 
         let mut processor = ExecutionProcessor::new(
             &mut buffer,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut *engine,
             &header,

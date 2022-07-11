@@ -3,7 +3,10 @@ use crate::{
     accessors::{chain, state},
     consensus::engine_factory,
     execution::{
-        analysis_cache::AnalysisCache, evmglue, processor::ExecutionProcessor, tracer::NoopTracer,
+        analysis_cache::AnalysisCache,
+        evmglue::{self, MemoryBank},
+        processor::ExecutionProcessor,
+        tracer::NoopTracer,
     },
     kv::{mdbx::*, tables, MdbxWithDirHandle},
     models::*,
@@ -72,6 +75,7 @@ where
         let mut buffer = Buffer::new(&txn, Some(block_number));
         let mut state = IntraBlockState::new(&mut buffer);
 
+        let mut memory_bank = MemoryBank::default();
         let mut analysis_cache = AnalysisCache::default();
         let block_spec = chain::chain_config::read(&txn)?
             .ok_or_else(|| format_err!("no chainspec found"))?
@@ -99,6 +103,7 @@ where
         Ok(evmglue::execute(
             &mut state,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &PartialHeader::from(header),
             &block_spec,
@@ -138,6 +143,7 @@ where
             value: call_data.value.unwrap_or(U256::ZERO),
             input: call_data.data.unwrap_or_default().into(),
         };
+        let mut memory_bank = MemoryBank::default();
         let mut cache = AnalysisCache::default();
         let block_spec = chain::chain_config::read(&txn)?
             .ok_or_else(|| format_err!("no chainspec found"))?
@@ -150,6 +156,7 @@ where
                 - evmglue::execute(
                     &mut state,
                     &mut tracer,
+                    &mut memory_bank,
                     &mut cache,
                     &PartialHeader::from(header),
                     &block_spec,
@@ -395,12 +402,14 @@ where
 
             let block_execution_spec = chain_spec.collect_block_spec(block_number);
             let mut engine = engine_factory(None, chain_spec)?;
+            let mut memory_bank = MemoryBank::default();
             let mut analysis_cache = AnalysisCache::default();
             let mut tracer = NoopTracer;
 
             let mut processor = ExecutionProcessor::new(
                 &mut buffer,
                 &mut tracer,
+                &mut memory_bank,
                 &mut analysis_cache,
                 &mut *engine,
                 &header,

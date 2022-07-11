@@ -100,8 +100,6 @@ pub struct ExecutionState<'m> {
     pub(crate) gas_left: i64,
     #[getset(get = "pub", get_mut = "pub")]
     pub(crate) stack: Stack,
-    #[getset(get = "pub", get_mut = "pub")]
-    pub(crate) memory: Memory,
     pub(crate) message: &'m InterpreterMessage,
     #[getset(get = "pub", get_mut = "pub")]
     pub(crate) return_data: Bytes,
@@ -113,7 +111,6 @@ impl<'m> ExecutionState<'m> {
         Self {
             gas_left: message.gas,
             stack: Stack::default(),
-            memory: Memory::new(),
             message,
             return_data: Default::default(),
             output_data: Bytes::new(),

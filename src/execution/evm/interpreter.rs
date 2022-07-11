@@ -167,6 +167,7 @@ impl AnalyzedCode {
     where
         H: Host,
     {
+        host.get_memory(message.depth as u16).clear();
         let mut state = ExecutionState::new(message);
         let res = match (host.trace_instructions(), revision) {
             (true, Revision::Frontier) => {
@@ -276,9 +277,10 @@ where
         if TRACE {
             // Do not print stop on the final STOP
             if pc < s.code.len() {
-                host.tracer(|t| {
+                host.tracer(|t, m| {
                     t.capture_state(
                         &state,
+                        &m.0[state.message.depth as usize],
                         pc,
                         op,
                         metrics.gas_cost as u64,
@@ -371,7 +373,7 @@ where
             }
 
             OpCode::KECCAK256 => {
-                memory::keccak256(state)?;
+                memory::keccak256(state, host)?;
             }
             OpCode::ADDRESS => {
                 external::address(state);
@@ -392,13 +394,13 @@ where
                 calldatasize(state);
             }
             OpCode::CALLDATACOPY => {
-                memory::calldatacopy(state)?;
+                memory::calldatacopy(state, host)?;
             }
             OpCode::CODESIZE => {
                 memory::codesize(&mut state.stack, &s.code[..]);
             }
             OpCode::CODECOPY => {
-                memory::codecopy(state, &s.code[..])?;
+                memory::codecopy(state, host, &s.code[..])?;
             }
             OpCode::EXTCODESIZE => {
                 external::extcodesize::<_, REVISION>(state, host)?;
@@ -410,7 +412,7 @@ where
                 memory::returndatasize(state);
             }
             OpCode::RETURNDATACOPY => {
-                memory::returndatacopy(state)?;
+                memory::returndatacopy(state, host)?;
             }
             OpCode::EXTCODEHASH => {
                 memory::extcodehash::<_, REVISION>(state, host)?;
@@ -439,9 +441,9 @@ where
                 external::selfbalance(state, host);
             }
             OpCode::POP => pop(&mut state.stack),
-            OpCode::MLOAD => memory::mload(state)?,
-            OpCode::MSTORE => memory::mstore(state)?,
-            OpCode::MSTORE8 => memory::mstore8(state)?,
+            OpCode::MLOAD => memory::mload(state, host)?,
+            OpCode::MSTORE => memory::mstore(state, host)?,
+            OpCode::MSTORE8 => memory::mstore8(state, host)?,
             OpCode::JUMP => {
                 pc = op_jump(state, &s.jumpdest_map)?;
 
@@ -459,7 +461,7 @@ where
                 }
             }
             OpCode::PC => state.stack.push(u128::try_from(pc).unwrap().into()),
-            OpCode::MSIZE => memory::msize(state),
+            OpCode::MSIZE => memory::msize(state, host),
             OpCode::SLOAD => {
                 external::sload::<_, REVISION>(state, host)?;
             }
@@ -561,7 +563,7 @@ where
                 call::do_call::<_, REVISION, { CallKind::Call }, true>(state, host)?
             }
             OpCode::RETURN | OpCode::REVERT => {
-                ret(state)?;
+                ret(state, host)?;
                 reverted = op == OpCode::REVERT;
                 break;
             }

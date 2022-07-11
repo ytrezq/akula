@@ -1,6 +1,9 @@
 use crate::{
     consensus::*,
-    execution::{analysis_cache::AnalysisCache, processor::ExecutionProcessor, tracer::NoopTracer},
+    execution::{
+        analysis_cache::AnalysisCache, evmglue::MemoryBank, processor::ExecutionProcessor,
+        tracer::NoopTracer,
+    },
     models::*,
     state::*,
 };
@@ -144,11 +147,13 @@ impl<'state> Blockchain<'state> {
 
         let block_spec = self.config.collect_block_spec(block.header.number);
 
+        let mut memory_bank = MemoryBank::default();
         let mut analysis_cache = AnalysisCache::default();
         let mut tracer = NoopTracer;
         let processor = ExecutionProcessor::new(
             self.state,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut *self.engine,
             &block.header,

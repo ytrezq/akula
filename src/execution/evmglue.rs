@@ -1,6 +1,7 @@
 use super::{
     address::*,
     analysis_cache::AnalysisCache,
+    evm::Memory,
     precompiled,
     tracer::{CodeKind, MessageKind, Tracer},
 };
@@ -16,6 +17,7 @@ use crate::{
 };
 use anyhow::Context;
 use bytes::Bytes;
+use derive_more::{Deref, DerefMut};
 use std::{cmp::min, convert::TryFrom};
 
 pub struct CallResult {
@@ -27,12 +29,22 @@ pub struct CallResult {
     pub output_data: Bytes,
 }
 
+#[derive(Clone, Debug, Deref, DerefMut)]
+pub struct MemoryBank(pub(crate) [Memory; 1025]);
+
+impl Default for MemoryBank {
+    fn default() -> Self {
+        Self([(); 1025].map(|_| Memory::default()))
+    }
+}
+
 struct Evm<'r, 'state, 'tracer, 'analysis, 'h, 'c, 't, B>
 where
     B: State,
 {
     state: &'state mut IntraBlockState<'r, B>,
     tracer: &'tracer mut dyn Tracer,
+    memory_bank: &'analysis mut MemoryBank,
     analysis_cache: &'analysis mut AnalysisCache,
     header: &'h PartialHeader,
     block_spec: &'c BlockExecutionSpec,
@@ -44,6 +56,7 @@ where
 pub fn execute<'db, 'tracer, 'analysis, B: State>(
     state: &mut IntraBlockState<'db, B>,
     tracer: &'tracer mut dyn Tracer,
+    memory_bank: &'analysis mut MemoryBank,
     analysis_cache: &'analysis mut AnalysisCache,
     header: &PartialHeader,
     block_spec: &BlockExecutionSpec,
@@ -54,6 +67,7 @@ pub fn execute<'db, 'tracer, 'analysis, B: State>(
     let mut evm = Evm {
         header,
         tracer,
+        memory_bank,
         analysis_cache,
         state,
         block_spec,
@@ -396,11 +410,15 @@ where
 impl<'r, 'state, 'tracer, 'analysis, 'h, 'c, 't, 'a, B: State> Host
     for EvmHost<'r, 'state, 'tracer, 'analysis, 'h, 'c, 't, 'a, B>
 {
+    fn get_memory(&mut self, depth: u16) -> &mut Memory {
+        &mut self.inner.memory_bank[depth as usize]
+    }
+
     fn trace_instructions(&self) -> bool {
         self.inner.tracer.trace_instructions()
     }
-    fn tracer(&mut self, mut f: impl FnMut(&mut dyn Tracer)) {
-        (f)(self.inner.tracer)
+    fn tracer(&mut self, mut f: impl FnMut(&mut dyn Tracer, &MemoryBank)) {
+        (f)(self.inner.tracer, self.inner.memory_bank)
     }
 
     fn account_exists(&mut self, address: Address) -> bool {
@@ -563,7 +581,7 @@ impl<'r, 'state, 'tracer, 'analysis, 'h, 'c, 't, 'a, B: State> Host
             .unwrap();
         self.inner.state.set_balance(address, 0).unwrap();
 
-        self.tracer(|t| t.capture_self_destruct(address, beneficiary, balance));
+        self.tracer(|t, _| t.capture_self_destruct(address, beneficiary, balance));
     }
 
     fn call(&mut self, msg: Call) -> Output {
@@ -677,6 +695,7 @@ mod tests {
         super::execute(
             state,
             &mut tracer,
+            &mut MemoryBank::default(),
             &mut AnalysisCache::default(),
             header,
             &MAINNET.collect_block_spec(header.number),

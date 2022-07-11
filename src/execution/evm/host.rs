@@ -1,9 +1,9 @@
-use crate::execution::tracer::{NoopTracer, Tracer};
-
 use super::{
     common::{InterpreterMessage, Output},
+    state::Memory,
     CreateMessage, StatusCode,
 };
+use crate::execution::{evmglue::MemoryBank, tracer::Tracer};
 use bytes::Bytes;
 use ethereum_types::Address;
 use ethnum::U256;
@@ -69,9 +69,8 @@ pub trait Host {
     fn trace_instructions(&self) -> bool {
         false
     }
-    fn tracer(&mut self, mut f: impl FnMut(&mut dyn Tracer)) {
-        (f)(&mut NoopTracer)
-    }
+    fn tracer(&mut self, f: impl FnMut(&mut dyn Tracer, &MemoryBank));
+    fn get_memory(&mut self, depth: u16) -> &mut Memory;
     /// Check if an account exists.
     fn account_exists(&mut self, address: Address) -> bool;
     /// Get value of a storage key.

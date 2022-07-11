@@ -50,9 +50,10 @@ pub(crate) fn do_call<
         }
     }
 
-    let input_region = memory::get_memory_region(state, input_offset, input_size)
+    let memory = host.get_memory(state.message.depth as u16);
+    let input_region = memory::get_memory_region(state, memory, input_offset, input_size)
         .map_err(|_| StatusCode::OutOfGas)?;
-    let output_region = memory::get_memory_region(state, output_offset, output_size)
+    let output_region = memory::get_memory_region(state, memory, output_offset, output_size)
         .map_err(|_| StatusCode::OutOfGas)?;
 
     let mut msg = InterpreterMessage {
@@ -78,7 +79,7 @@ pub(crate) fn do_call<
         },
         input_data: input_region
             .map(|MemoryRegion { offset, size }| {
-                state.memory[offset..offset + size.get()].to_vec().into()
+                memory[offset..offset + size.get()].to_vec().into()
             })
             .unwrap_or_default(),
     };
@@ -134,7 +135,7 @@ pub(crate) fn do_call<
         if let Some(MemoryRegion { offset, size }) = output_region {
             let copy_size = min(size.get(), result.output_data.len());
             if copy_size > 0 {
-                state.memory[offset..offset + copy_size]
+                host.get_memory(state.message.depth as u16)[offset..offset + copy_size]
                     .copy_from_slice(&result.output_data[..copy_size]);
             }
         }
@@ -165,7 +166,8 @@ pub(crate) fn do_create<H: Host, const REVISION: Revision, const CREATE2: bool>(
     let init_code_offset = state.stack.pop();
     let init_code_size = state.stack.pop();
 
-    let region = memory::get_memory_region(state, init_code_offset, init_code_size)
+    let memory = host.get_memory(state.message.depth as u16);
+    let region = memory::get_memory_region(state, memory, init_code_offset, init_code_size)
         .map_err(|_| StatusCode::OutOfGas)?;
 
     let salt = if CREATE2 {
@@ -199,7 +201,7 @@ pub(crate) fn do_create<H: Host, const REVISION: Revision, const CREATE2: bool>(
 
             salt,
             initcode: if init_code_size != 0 {
-                state.memory[init_code_offset.as_usize()
+                host.get_memory(state.message.depth as u16)[init_code_offset.as_usize()
                     ..init_code_offset.as_usize() + init_code_size.as_usize()]
                     .to_vec()
                     .into()

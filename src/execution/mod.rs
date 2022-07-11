@@ -1,4 +1,7 @@
-use self::{analysis_cache::AnalysisCache, processor::ExecutionProcessor, tracer::NoopTracer};
+use self::{
+    analysis_cache::AnalysisCache, evmglue::MemoryBank, processor::ExecutionProcessor,
+    tracer::NoopTracer,
+};
 use crate::{
     consensus::{self, DuoError},
     models::*,
@@ -19,6 +22,7 @@ pub fn execute_block<S: State>(
     header: &PartialHeader,
     block: &BlockBodyWithSenders,
 ) -> Result<Vec<Receipt>, DuoError> {
+    let mut memory_bank = MemoryBank::default();
     let mut analysis_cache = AnalysisCache::default();
     let mut engine = consensus::engine_factory(None, config.clone())?;
     let mut tracer = NoopTracer;
@@ -26,6 +30,7 @@ pub fn execute_block<S: State>(
     ExecutionProcessor::new(
         state,
         &mut tracer,
+        &mut memory_bank,
         &mut analysis_cache,
         &mut *engine,
         header,

@@ -13,7 +13,7 @@ use std::{
     fmt::Debug,
 };
 
-use super::evm::Output;
+use super::evm::{Memory, Output};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CodeKind {
@@ -60,6 +60,7 @@ pub trait Tracer: Debug + Send {
     fn capture_state(
         &mut self,
         env: &ExecutionState,
+        memory: &Memory,
         pc: usize,
         op: OpCode,
         cost: u64,

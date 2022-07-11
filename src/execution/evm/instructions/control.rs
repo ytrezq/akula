@@ -1,15 +1,16 @@
-use crate::execution::evm::{interpreter::JumpdestMap, state::ExecutionState, StatusCode};
+use crate::execution::evm::{interpreter::JumpdestMap, state::ExecutionState, Host, StatusCode};
 use ethnum::U256;
 
 #[inline]
-pub(crate) fn ret(state: &mut ExecutionState) -> Result<(), StatusCode> {
+pub(crate) fn ret<H: Host>(state: &mut ExecutionState, host: &mut H) -> Result<(), StatusCode> {
     let offset = *state.stack.get(0);
     let size = *state.stack.get(1);
 
-    if let Some(region) =
-        super::memory::get_memory_region(state, offset, size).map_err(|_| StatusCode::OutOfGas)?
+    let memory = host.get_memory(state.message.depth as u16);
+    if let Some(region) = super::memory::get_memory_region(state, memory, offset, size)
+        .map_err(|_| StatusCode::OutOfGas)?
     {
-        state.output_data = state.memory[region.offset..region.offset + region.size.get()]
+        state.output_data = memory[region.offset..region.offset + region.size.get()]
             .to_vec()
             .into();
     }

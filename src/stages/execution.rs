@@ -3,6 +3,7 @@ use crate::{
     consensus::{engine_factory, DuoError},
     execution::{
         analysis_cache::AnalysisCache,
+        evmglue::MemoryBank,
         processor::ExecutionProcessor,
         tracer::{CallTracer, CallTracerFlags},
     },
@@ -44,6 +45,7 @@ fn execute_batch_of_blocks<E: EnvironmentKind>(
 ) -> Result<BlockNumber, StageError> {
     let mut buffer = Buffer::new(tx, None);
     let mut consensus_engine = engine_factory(None, chain_config.clone())?;
+    let mut memory_bank = MemoryBank::default();
     let mut analysis_cache = AnalysisCache::default();
 
     let mut block_number = starting_block;
@@ -78,6 +80,7 @@ fn execute_batch_of_blocks<E: EnvironmentKind>(
         let receipts = ExecutionProcessor::new(
             &mut buffer,
             &mut call_tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut *consensus_engine,
             &header,

@@ -60,7 +60,15 @@ impl Tracer for StdoutTracer {
             .push(TracerContext { message_gas: gas });
     }
 
-    fn capture_state(&mut self, env: &ExecutionState, pc: usize, op: OpCode, _: u64, _: u16) {
+    fn capture_state(
+        &mut self,
+        env: &ExecutionState,
+        memory: &Memory,
+        pc: usize,
+        op: OpCode,
+        _: u64,
+        _: u16,
+    ) {
         println!(
             "{}",
             serde_json::to_string(&InstructionStart {
@@ -69,7 +77,7 @@ impl Tracer for StdoutTracer {
                 op_name: op.name(),
                 gas: env.gas_left as u64,
                 stack: env.stack.clone(),
-                memory_size: env.memory.len()
+                memory_size: memory.len()
             })
             .unwrap()
         )

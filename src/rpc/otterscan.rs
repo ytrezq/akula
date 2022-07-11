@@ -4,6 +4,7 @@ use crate::{
     consensus::{engine_factory, FinalizationChange},
     execution::{
         analysis_cache::AnalysisCache,
+        evmglue::MemoryBank,
         processor::{execute_transaction, ExecutionProcessor},
         tracer::{CallKind, MessageKind, NoopTracer, Tracer},
     },
@@ -148,6 +149,7 @@ where
     let mut state = IntraBlockState::new(&mut buffer);
 
     let block_spec = chain_spec.collect_block_spec(block_number);
+    let mut memory_bank = MemoryBank::default();
     let mut analysis_cache = AnalysisCache::default();
 
     let mut prev_cumulative_gas_used = 0;
@@ -182,6 +184,7 @@ where
             &block_spec,
             &header,
             &mut tracer,
+            &mut memory_bank,
             &mut analysis_cache,
             &mut cumulative_gas_used,
             &transaction.message,
@@ -455,12 +458,14 @@ where
 
             let block_execution_spec = chain_spec.collect_block_spec(block_number);
             let mut engine = engine_factory(None, chain_spec)?;
+            let mut memory_bank = MemoryBank::default();
             let mut analysis_cache = AnalysisCache::default();
             let mut tracer = NoopTracer;
 
             let mut processor = ExecutionProcessor::new(
                 &mut buffer,
                 &mut tracer,
+                &mut memory_bank,
                 &mut analysis_cache,
                 &mut *engine,
                 &header,
