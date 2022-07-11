@@ -2,6 +2,7 @@ use akula::{
     akula_tracing::{self, Component},
     binutil::AkulaDataDir,
     consensus::{engine_factory, Consensus, ForkChoiceMode},
+    execution::analysis_cache::AnalysisCache,
     models::*,
     p2p::node::NodeBuilder,
     rpc::{
@@ -298,6 +299,7 @@ fn main() -> anyhow::Result<()> {
                 );
                 staged_sync.push(
                     Execution {
+                        analysis_cache: AnalysisCache::default(),
                         batch_size: opt.execution_batch_size.saturating_mul(1_000_000_000_u64),
                         history_batch_size: opt
                             .execution_history_batch_size

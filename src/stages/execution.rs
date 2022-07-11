@@ -24,6 +24,7 @@ use tracing::*;
 /// Execution of blocks through EVM
 #[derive(Debug)]
 pub struct Execution {
+    pub analysis_cache: AnalysisCache,
     pub batch_size: u64,
     pub history_batch_size: u64,
     pub exit_after_batch: bool,
@@ -35,6 +36,7 @@ pub struct Execution {
 fn execute_batch_of_blocks<E: EnvironmentKind>(
     tx: &MdbxTransaction<'_, RW, E>,
     chain_config: ChainSpec,
+    analysis_cache: &mut AnalysisCache,
     max_block: BlockNumber,
     batch_size: u64,
     history_batch_size: u64,
@@ -46,7 +48,6 @@ fn execute_batch_of_blocks<E: EnvironmentKind>(
     let mut buffer = Buffer::new(tx, None);
     let mut consensus_engine = engine_factory(None, chain_config.clone())?;
     let mut memory_bank = MemoryBank::default();
-    let mut analysis_cache = AnalysisCache::default();
 
     let mut block_number = starting_block;
     let mut gas_since_start = 0;
@@ -81,7 +82,7 @@ fn execute_batch_of_blocks<E: EnvironmentKind>(
             &mut buffer,
             &mut call_tracer,
             &mut memory_bank,
-            &mut analysis_cache,
+            analysis_cache,
             &mut *consensus_engine,
             &header,
             &block,
@@ -213,6 +214,7 @@ where
             let executed_to = execute_batch_of_blocks(
                 tx,
                 chain_config,
+                &mut self.analysis_cache,
                 max_block,
                 self.batch_size,
                 self.history_batch_size,
