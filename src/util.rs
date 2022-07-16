@@ -84,6 +84,7 @@ pub mod akula_tracing {
 
     pub enum Component {
         Core,
+        Otterscan,
         Sentry,
         RPCDaemon,
     }
@@ -92,6 +93,7 @@ pub mod akula_tracing {
         fn default_filter(self) -> EnvFilter {
             match self {
                 Self::Core => EnvFilter::new("akula=info"),
+                Self::Otterscan => EnvFilter::new("otterscan=info"),
                 Self::Sentry => EnvFilter::new(
                     "akula_sentry=info,akula::sentry::devp2p=info,akula::sentry::devp2p::disc=info",
                 ),
