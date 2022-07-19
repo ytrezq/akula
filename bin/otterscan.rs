@@ -1,6 +1,7 @@
 use akula::akula_tracing::{self, Component};
 use axum::{
     body::{boxed, Full},
+    extract::Path,
     handler::Handler,
     http::{header, StatusCode, Uri},
     response::{Html, IntoResponse, Response},
@@ -47,6 +48,7 @@ async fn main() {
                 }
             }),
         )
+        .route("/signatures/:id", get(signature_handler))
         .route("/block/*file", get(index_handler))
         .route("/address/*file", get(index_handler))
         .route("/static/*file", static_handler::<Asset>.into_service())
@@ -67,6 +69,19 @@ async fn main() {
 // page.
 async fn index_handler() -> impl IntoResponse {
     static_handler::<Asset>("/index.html".parse::<Uri>().unwrap()).await
+}
+
+async fn signature_handler(Path(id): Path<String>) -> impl IntoResponse {
+    if let Ok(number) = u32::from_str_radix(&id, 16) {
+        if let Some(signature) = fourbytes::SIGNATURES.get(number.to_be_bytes()) {
+            return signature.into_response();
+        }
+    }
+
+    Response::builder()
+        .status(StatusCode::NOT_FOUND)
+        .body(boxed(Full::from("404")))
+        .unwrap()
 }
 
 // We use a wildcard matcher ("/static/*file") to match against everything

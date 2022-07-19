@@ -58,6 +58,7 @@ fastrlp = { version = "0.1", features = [
   "std",
 ] }
 fdlimit = "0.2"
+fourbytes = { git = "https://github.com/vorot93/fourbytes" }
 futures = { version = "0.3", features = ["unstable"] }
 futures-intrusive = "0.4"
 gen-iter = "0.2"
