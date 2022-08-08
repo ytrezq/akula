@@ -274,6 +274,7 @@ where
             let mut gas_used = 0;
             let (output, _) = execute_transaction(
                 &mut state,
+                true,
                 &block_spec,
                 &header,
                 &mut tracer,

@@ -80,7 +80,7 @@ fn execute_batch_of_blocks<E: EnvironmentKind>(
         }
 
         let mut call_tracer = CallTracer::default();
-        let receipts = ExecutionProcessor::new(
+        let mut processor = ExecutionProcessor::new(
             &mut buffer,
             &mut call_tracer,
             &mut analysis_cache,
@@ -88,9 +88,9 @@ fn execute_batch_of_blocks<E: EnvironmentKind>(
             &header,
             &block,
             &block_spec,
-        )
-        .execute_and_write_block()
-        .map_err(|e| match e {
+        );
+        processor.set_skip_logs_bloom(true);
+        let receipts = processor.execute_and_write_block().map_err(|e| match e {
             DuoError::Validation(error) => StageError::Validation {
                 block: block_number,
                 error,

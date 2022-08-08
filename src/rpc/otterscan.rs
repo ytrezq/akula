@@ -182,6 +182,7 @@ where
         let mut tracer = TouchTracer::new(addr);
         let receipt = execute_transaction(
             &mut state,
+            true,
             &block_spec,
             &header,
             &mut tracer,

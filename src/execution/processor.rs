@@ -20,6 +20,7 @@ where
     S: StateReader,
 {
     state: IntraBlockState<'r, S>,
+    skip_logs_bloom: bool,
     tracer: &'tracer mut dyn Tracer,
     analysis_cache: &'analysis mut AnalysisCache,
     engine: &'e mut dyn Consensus,
@@ -64,6 +65,7 @@ where
 
 pub fn execute_transaction<'r, S>(
     state: &mut IntraBlockState<'r, S>,
+    compute_logs_bloom: bool,
     block_spec: &BlockExecutionSpec,
     header: &BlockHeader,
     tracer: &mut dyn Tracer,
@@ -160,7 +162,11 @@ where
             tx_type: message.tx_type(),
             success: vm_res.status_code == StatusCode::Success,
             cumulative_gas_used: *cumulative_gas_used,
-            bloom: logs_bloom(state.logs()),
+            bloom: if compute_logs_bloom {
+                logs_bloom(state.logs())
+            } else {
+                Bloom::zero()
+            },
             logs: state.logs().to_vec(),
         },
     ))
@@ -194,6 +200,7 @@ where
     ) -> Self {
         Self {
             state: IntraBlockState::new(state),
+            skip_logs_bloom: false,
             tracer,
             analysis_cache,
             engine,
@@ -202,6 +209,10 @@ where
             block_spec,
             cumulative_gas_used: 0,
         }
+    }
+
+    pub fn set_skip_logs_bloom(&mut self, v: bool) {
+        self.skip_logs_bloom = v;
     }
 
     fn available_gas(&self) -> u64 {
@@ -293,6 +304,7 @@ where
 
         execute_transaction(
             &mut self.state,
+            !self.skip_logs_bloom,
             self.block_spec,
             self.header,
             self.tracer,
