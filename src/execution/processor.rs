@@ -9,7 +9,6 @@ use crate::{
     h256_to_u256,
     models::*,
     state::IntraBlockState,
-    trie::root_hash,
     HeaderReader, State, StateReader,
 };
 use bytes::Bytes;
@@ -372,30 +371,6 @@ where
                 expected: self.header.gas_used,
                 got: gas_used,
                 transactions,
-            }
-            .into());
-        }
-
-        let rev = self.block_spec.revision;
-
-        if rev >= Revision::Byzantium {
-            let expected = root_hash(&receipts);
-            if expected != self.header.receipts_root {
-                return Err(ValidationError::WrongReceiptsRoot {
-                    expected,
-                    got: self.header.receipts_root,
-                }
-                .into());
-            }
-        }
-
-        let expected_logs_bloom = receipts
-            .iter()
-            .fold(Bloom::zero(), |bloom, r| bloom | r.bloom);
-        if expected_logs_bloom != self.header.logs_bloom {
-            return Err(ValidationError::WrongLogsBloom {
-                expected: expected_logs_bloom,
-                got: self.header.logs_bloom,
             }
             .into());
         }
