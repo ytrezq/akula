@@ -324,6 +324,7 @@ macro_rules! scale_table_object {
 
 scale_table_object!(BodyForStorage);
 scale_table_object!(BlockHeader);
+scale_table_object!(crate::models::BlockBody);
 scale_table_object!(MessageWithSignature);
 
 macro_rules! ron_table_object {

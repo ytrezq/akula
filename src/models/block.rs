@@ -66,7 +66,7 @@ impl From<Block> for BlockWithSenders {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, RlpEncodable, RlpDecodable)]
 pub struct BlockBody {
     pub transactions: Vec<MessageWithSignature>,
     pub ommers: Vec<BlockHeader>,
@@ -317,7 +317,7 @@ mod tests {
         ) as &[u8];
 
         let buf = &mut &*rlp_hex;
-        let bb = BlockBody::decode(buf).unwrap();
+        let bb = <BlockBody as Decodable>::decode(buf).unwrap();
         assert!(buf.is_empty());
 
         assert_eq!(bb.transactions, []);
@@ -351,7 +351,7 @@ mod tests {
         );
 
         let mut out = BytesMut::new();
-        bb.encode(&mut out);
+        Encodable::encode(&bb, &mut out);
         assert_eq!(hex::encode(out), hex::encode(rlp_hex));
     }
 
@@ -428,7 +428,7 @@ mod tests {
         };
 
         let mut out = BytesMut::new();
-        body.encode(&mut out);
+        Encodable::encode(&body, &mut out);
 
         let out = &mut &*out;
         let decoded = <BlockBody as Decodable>::decode(out).unwrap();
