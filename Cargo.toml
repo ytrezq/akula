@@ -78,7 +78,6 @@ impls = "1"
 itertools = "0.10"
 jsonrpsee = { version = "0.15", features = ["server"] }
 lava_torrent = "0.8"
-rbtorrent = { git = "https://github.com/vorot93/rbtorrent" }
 lru = "0.7"
 maplit = "1"
 mdbx = { package = "libmdbx", version = "0.1" }
@@ -108,6 +107,7 @@ serde_with = "2"
 sha2 = "0.10"
 sha3 = "0.10"
 shellexpand = "2"
+signal-hook = "0.3"
 snap = "1"
 string = "0.3"
 strum = { version = "0.24", features = ["derive"] }
@@ -131,6 +131,7 @@ tonic-health = "0.7"
 tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+transmission-rpc = "0.3"
 trust-dns-resolver = "0.22"
 url = "2"
 walkdir = "2"
@@ -168,6 +169,7 @@ triehash = "0.8"
 arrayvec = { git = "https://github.com/vorot93/arrayvec", branch = "pop-unchecked" }
 enr = { git = "https://github.com/sigp/enr" }
 ethnum = { git = "https://github.com/vorot93/ethnum-rs", branch = "impls" }
+transmission-rpc = { git = "https://github.com/vorot93/transmission-rpc.git", branch = "torrent-set" }
 
 [[bin]]
 path = "bin/akula.rs"
