@@ -1,13 +1,9 @@
 use crate::sentry::{
-    devp2p::{
-        disc::{dns::Resolver, v4::Node},
-        *,
-    },
-    Discv4, Discv4Builder, DnsDiscovery, StaticNodes,
+    devp2p::{disc::dns::Resolver, *},
+    DnsDiscovery, StaticNodes,
 };
 use anyhow::format_err;
 use derive_more::FromStr;
-use secp256k1::SecretKey;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tracing::info;
 use trust_dns_resolver::TokioAsyncResolver;
@@ -32,43 +28,6 @@ impl OptsDnsDisc {
         ));
 
         let task = DnsDiscovery::new(Arc::new(dns_resolver), self.address, None);
-
-        Ok(task)
-    }
-}
-
-pub struct OptsDiscV4 {
-    pub discv4_port: u16,
-    pub discv4_bootnodes: Vec<Discv4NR>,
-    pub discv4_cache: usize,
-    pub discv4_concurrent_lookups: usize,
-    pub listen_port: u16,
-}
-
-impl OptsDiscV4 {
-    pub async fn make_task(self, secret_key: &SecretKey) -> anyhow::Result<Discv4> {
-        info!("Starting discv4 at port {}", self.discv4_port);
-
-        let bootstrap_nodes = self
-            .discv4_bootnodes
-            .into_iter()
-            .map(|Discv4NR(nr)| nr)
-            .collect::<Vec<_>>();
-
-        let node = Node::new(
-            format!("0.0.0.0:{}", self.discv4_port).parse().unwrap(),
-            *secret_key,
-            bootstrap_nodes,
-            None,
-            true,
-            self.listen_port,
-        )
-        .await?;
-
-        let task = Discv4Builder::default()
-            .with_cache(self.discv4_cache)
-            .with_concurrent_lookups(self.discv4_concurrent_lookups)
-            .build(node);
 
         Ok(task)
     }
