@@ -60,7 +60,6 @@ where
 
                         let mut out = BTreeSet::new();
 
-                        let mut i = 0;
                         while let Some((
                             BitmapKey {
                                 inner: (address, slot),
@@ -82,8 +81,7 @@ where
                             {
                                 out.insert(slot);
 
-                                i += 1;
-                                if i == 5 {
+                                if out.len() == number_of_slots {
                                     break;
                                 }
                             }
